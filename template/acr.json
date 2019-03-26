@@ -1,0 +1,89 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "allowedValues": [
+        "australiaeast",
+        "canadacentral",
+        "canadaeast",
+        "centralus",
+        "eastasia",
+        "eastus",
+        "eastus2",
+        "japaneast",
+        "northeurope",
+        "southindia",
+        "southeastasia",
+        "uksouth",
+        "ukwest",
+        "westeurope",
+        "westus",
+        "westus2"
+      ],
+      "defaultValue": "eastus"
+    },
+    "deployContainerRegistry": {
+      "type": "bool"
+    }
+  },
+  "variables": {
+    "acrName": "[concat(replace(toLower(parameters('namePrefix')),'-', ''), 'acr')]"
+  },
+  "resources": [
+    {
+      "condition": "[parameters('deployContainerRegistry')]",
+      "apiVersion": "2017-05-10",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat('inner-acr-', parameters('location'))]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries",
+              "name": "[variables('acrName')]",
+              "location": "[parameters('location')]",
+              "apiVersion": "2017-10-01",
+              "sku": {
+                "name": "Premium"
+              },
+              "properties": {
+                "adminUserEnabled": true
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "condition": "[not(parameters('deployContainerRegistry'))]",
+      "apiVersion": "2017-05-10",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat('inner-acr-replication-', parameters('location'))]",
+      "properties": {
+        "mode": "Incremental",
+        "template": {
+          "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+          "contentVersion": "1.0.0.0",
+          "resources": [
+            {
+              "type": "Microsoft.ContainerRegistry/registries/replications",
+              "name": "[concat(variables('acrName'), '/', parameters('location'))]",
+              "apiVersion": "2017-10-01",
+              "location": "[parameters('location')]",
+              "tags": {},
+              "properties": {}
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

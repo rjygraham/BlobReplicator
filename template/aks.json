@@ -1,0 +1,136 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "allowedValues": [
+        "australiaeast",
+        "canadacentral",
+        "canadaeast",
+        "centralus",
+        "eastasia",
+        "eastus",
+        "eastus2",
+        "japaneast",
+        "northeurope",
+        "southindia",
+        "southeastasia",
+        "uksouth",
+        "ukwest",
+        "westeurope",
+        "westus",
+        "westus2"
+      ],
+      "defaultValue": "eastus"
+    },
+    "servicePrincipalClientId": {
+      "type": "securestring"
+    },
+    "servicePrincipalClientSecret": {
+      "type": "securestring"
+    },
+    "virtualNetworkName": {
+      "type": "string"
+    },
+    "subnetName": {
+      "type": "string"
+    },
+    "logAnalyticsName": {
+      "type": "string"
+    },
+    "kubernetesVersion": {
+      "type": "string",
+      "defaultValue": "1.12.6"
+    },
+    "agentCount": {
+      "type": "int",
+      "defaultValue": 1
+    },
+    "agentVMSize": {
+      "type": "string",
+      "defaultValue": "Standard_DS1_v2"
+    },
+    "osDiskSizeGB": {
+      "type": "int",
+      "minValue": 0,
+      "maxValue": 1023,
+      "defaultValue": 0
+    },
+    "serviceCidr": {
+      "type": "string",
+      "defaultValue": "192.168.0.0/16"
+    },
+    "dnsServiceIP": {
+      "type": "string",
+      "defaultValue": "192.168.0.10"
+    },
+    "dockerBridgeCidr": {
+      "type": "string",
+      "defaultValue": "172.17.0.1/16"
+    },
+    "enableHttpApplicationRouting": {
+      "type": "bool",
+      "defaultValue": false
+    }
+  },
+  "variables": {
+    "aksName": "[concat(parameters('namePrefix'), '-', parameters('location'), '-aks')]",
+    "mcResourceGroupName": "[concat('MC_', resourceGroup().name, '_', variables('aksName'), '_', parameters('location'))]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-03-31",
+      "type": "Microsoft.ContainerService/managedClusters",
+      "location": "[parameters('location')]",
+      "name": "[variables('aksName')]",
+      "properties": {
+        "kubernetesVersion": "[parameters('kubernetesVersion')]",
+        "enableRBAC": false,
+        "dnsPrefix": "[variables('aksName')]",
+        "addonProfiles": {
+          "httpApplicationRouting": {
+            "enabled": "[parameters('enableHttpApplicationRouting')]"
+          },
+          "omsagent": {
+            "enabled": true,
+            "config": {
+              "logAnalyticsWorkspaceResourceID": "[resourceId('Microsoft.OperationalInsights/workspaces', parameters('logAnalyticsName'))]"
+            }
+          }
+        },
+        "agentPoolProfiles": [
+          {
+            "name": "agentpool",
+            "osDiskSizeGB": "[parameters('osDiskSizeGB')]",
+            "count": "[parameters('agentCount')]",
+            "vmSize": "[parameters('agentVMSize')]",
+            "osType": "Linux",
+            "storageProfile": "ManagedDisks",
+            "vnetSubnetID": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName')), '/subnets/', parameters('subnetName'))]"
+          }
+        ],
+        "servicePrincipalProfile": {
+          "clientId": "[parameters('servicePrincipalClientId')]",
+          "secret": "[parameters('servicePrincipalClientSecret')]"
+        },
+        "networkProfile": {
+          "networkPlugin": "azure",
+          "serviceCidr": "[parameters('serviceCidr')]",
+          "dnsServiceIP": "[parameters('dnsServiceIP')]",
+          "dockerBridgeCidr": "[parameters('dockerBridgeCidr')]"
+        }
+      },
+      "tags": {}
+    }
+  ],
+  "outputs": {
+    "mcResourceGroupName": {
+      "type": "string",
+      "value": "[variables('mcResourceGroupName')]"
+    }
+  }
+}

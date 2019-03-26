@@ -1,0 +1,67 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ template "blobreplicator.fullname" . }}
+  labels:
+    app: {{ template "blobreplicator.name" . }}
+    chart: {{ template "blobreplicator.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ template "blobreplicator.name" . }}
+      release: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ template "blobreplicator.name" . }}
+        release: {{ .Release.Name }}
+        aadpodidbinding: {{ .Values.labels.aadpodidbinding }}
+    spec:
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+          - name: SUBSCRIPTION_ID
+            value: {{ .Values.env.subscriptionId }}
+          - name: RESOURCE_GROUP
+            value: {{ .Values.env.resourceGroup }}
+          - name: REGION
+            value: {{ .Values.env.region }}
+          - name: DESTINATION_REGIONS
+            value: {{ .Values.env.destinationRegions }}
+          - name: HOSTNAME
+            value: {{ .Values.env.hostname }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /api/health/live
+              port: http
+            initialDelaySeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health/ready
+              port: http
+            initialDelaySeconds: 10
+            timeoutSeconds: 90
+            periodSeconds: 180
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}

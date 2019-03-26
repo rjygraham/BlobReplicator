@@ -1,0 +1,84 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "allowedValues": [
+        "australiaeast",
+        "canadacentral",
+        "canadaeast",
+        "centralus",
+        "eastasia",
+        "eastus",
+        "eastus2",
+        "japaneast",
+        "northeurope",
+        "southindia",
+        "southeastasia",
+        "uksouth",
+        "ukwest",
+        "westeurope",
+        "westus",
+        "westus2"
+      ],
+      "defaultValue": "eastus"
+    },
+    "quantity": {
+      "type": "int",
+      "defaultValue": 2
+    },
+    "publicIps": {
+      "type": "array"
+    },
+    "virtualNetworkName": {
+      "type": "string"
+    }
+  },
+  "variables": {
+    "storageAccountName": "[concat(replace(toLower(parameters('namePrefix')),'-', ''), parameters('location'), 'data')]"
+  },
+  "resources": [
+    {
+      "name": "[concat(variables('storageAccountName'), padLeft(add(copyIndex(), 1), 3, '0'))]",
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2018-07-01",
+      "location": "[parameters('location')]",
+      "properties": {
+        "accessTier": "Hot",
+        "supportsHttpsTrafficOnly": true,
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Deny",
+          "copy": [
+            {
+              "name": "ipRules",
+              "count": "[length(parameters('publicIps'))]",
+              "input": {
+                "value": "[parameters('publicIps')[copyIndex('ipRules')]]",
+                "action": "Allow"
+              }
+            }
+          ],
+          "virtualNetworkRules": [
+            {
+              "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', parameters('virtualNetworkName')), '/subnets/workload')]",
+              "action": "Allow"
+            }
+          ]
+        }
+      },
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "copy": {
+        "name": "storagecopy",
+        "count": "[parameters('quantity')]"
+      }
+    }
+  ]
+}

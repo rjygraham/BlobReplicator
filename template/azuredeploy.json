@@ -1,0 +1,243 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "type": "string"
+    },
+    "servicePrincipalClientId": {
+      "type": "securestring"
+    },
+    "servicePrincipalClientSecret": {
+      "type": "securestring"
+    },
+    "regionalConfigurations": {
+      "type": "object",
+      "defaultValue": {
+        "regions": [
+          {
+            "location": "eastus",
+            "logAnalyticsLocation": "eastus",
+            "vnetAddressPrefixes": "10.0.0.0/23",
+            "workloadSubnetAddressPrefix": "10.0.0.0/24",
+            "aksSubnetAddressPrefix": "10.0.1.0/24",
+            "storageAccountQuantity": 2
+          },
+          {
+            "location": "westus2",
+            "logAnalyticsLocation": "westus2",
+            "vnetAddressPrefixes": "10.0.2.0/23",
+            "workloadSubnetAddressPrefix": "10.0.2.0/24",
+            "aksSubnetAddressPrefix": "10.0.3.0/24",
+            "storageAccountQuantity": 2
+          }
+        ]
+      }
+    }
+  },
+  "variables": {
+    "emptyArray": [],
+    "regionCount": "[length(parameters('regionalConfigurations').regions)]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2017-05-10",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat('acr-', parameters('regionalConfigurations').regions[copyIndex('acrCopy')].location)]",
+      "copy": {
+        "name": "acrCopy",
+        "count": "[variables('regionCount')]",
+        "mode": "Serial"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'acr.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namePrefix": {
+            "value": "[parameters('namePrefix')]"
+          },
+          "location": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('acrCopy')].location]"
+          },
+          "deployContainerRegistry": {
+            "value": "[equals(copyIndex('acrCopy'), 0)]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat('vnet-', parameters('regionalConfigurations').regions[copyIndex('vnetCopy')].location)]",
+      "copy": {
+        "name": "vnetCopy",
+        "count": "[variables('regionCount')]",
+        "mode": "Parallel"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'vnet.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namePrefix": {
+            "value": "[parameters('namePrefix')]"
+          },
+          "location": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('vnetCopy')].location]"
+          },
+          "vnetAddressPrefixes": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('vnetCopy')].vnetAddressPrefixes]"
+          },
+          "workloadSubnetAddressPrefix": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('vnetCopy')].workloadSubnetAddressPrefix]"
+          },
+          "aksSubnetAddressPrefix": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('vnetCopy')].aksSubnetAddressPrefix]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat('logs-', parameters('regionalConfigurations').regions[copyIndex('logsCopy')].logAnalyticsLocation)]",
+      "copy": {
+        "name": "logsCopy",
+        "count": "[variables('regionCount')]",
+        "mode": "Parallel"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'logs.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namePrefix": {
+            "value": "[parameters('namePrefix')]"
+          },
+          "location": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('logsCopy')].logAnalyticsLocation]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat('aks-', parameters('regionalConfigurations').regions[copyIndex('aksCopy')].location)]",
+      "dependsOn": ["vnetCopy", "logsCopy"],
+      "copy": {
+        "name": "aksCopy",
+        "count": "[variables('regionCount')]",
+        "mode": "Parallel"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'aks.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namePrefix": {
+            "value": "[parameters('namePrefix')]"
+          },
+          "location": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('aksCopy')].location]"
+          },
+          "servicePrincipalClientId": {
+            "value": "[parameters('servicePrincipalClientId')]"
+          },
+          "servicePrincipalClientSecret": {
+            "value": "[parameters('servicePrincipalClientSecret')]"
+          },
+          "virtualNetworkName": {
+            "value": "[reference(concat('vnet-', parameters('regionalConfigurations').regions[copyIndex('aksCopy')].location)).outputs.virtualNetworkName.value]"
+          },
+          "subnetName": {
+            "value": "aks"
+          },
+          "logAnalyticsName": {
+            "value": "[reference(concat('logs-', parameters('regionalConfigurations').regions[copyIndex('aksCopy')].logAnalyticsLocation)).outputs.logAnalyticsName.value]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat('publicIp-', parameters('regionalConfigurations').regions[copyIndex('publicIpCopy')].location)]",
+      "dependsOn": ["aksCopy"],
+      "resourceGroup": "[concat('MC_', resourceGroup().name, '_', parameters('namePrefix'), '-', parameters('regionalConfigurations').regions[copyIndex('publicIpCopy')].location, '-aks', '_', parameters('regionalConfigurations').regions[copyIndex('publicIpCopy')].location)]",
+      "copy": {
+        "name": "publicIpCopy",
+        "count": "[variables('regionCount')]",
+        "mode": "Serial"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'pip.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namePrefix": {
+            "value": "[parameters('namePrefix')]"
+          },
+          "location": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('publicIpCopy')].location]"
+          },
+          "state": {
+            "value": "[if(equals(copyIndex(), 0), variables('emptyArray'), reference(concat('publicIp-', parameters('regionalConfigurations').regions[sub(copyIndex('publicIpCopy'), 1)].location)).outputs.state.value)]"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "2017-05-10",
+      "type": "Microsoft.Resources/deployments",
+      "name": "[concat('storage-', parameters('regionalConfigurations').regions[copyIndex('storageCopy')].location)]",
+      "dependsOn": ["publicIpCopy"],
+      "copy": {
+        "name": "storageCopy",
+        "count": "[variables('regionCount')]",
+        "mode": "Parallel"
+      },
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[uri(deployment().properties.templateLink.uri, 'storage.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "namePrefix": {
+            "value": "[parameters('namePrefix')]"
+          },
+          "location": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('storageCopy')].location]"
+          },
+          "quantity": {
+            "value": "[parameters('regionalConfigurations').regions[copyIndex('storageCopy')].storageAccountQuantity]"
+          },
+          "publicIps": {
+            "value": "[reference(concat('publicIp-', parameters('regionalConfigurations').regions[sub(variables('regionCount'), 1)].location)).outputs.state.value]"
+          },
+          "virtualNetworkName": {
+            "value": "[reference(concat('vnet-', parameters('regionalConfigurations').regions[copyIndex('storageCopy')].location)).outputs.virtualNetworkName.value]"
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "values": {
+      "type": "array",
+      "value": "[reference(concat('publicIp-', parameters('regionalConfigurations').regions[sub(variables('regionCount'), 1)].location)).outputs.state.value]"
+    }
+  }
+}

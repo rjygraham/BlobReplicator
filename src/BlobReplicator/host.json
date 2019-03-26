@@ -1,0 +1,13 @@
+{
+	"version": "2.0",
+	"logging": {
+		"fileLoggingMode": "always",
+		"logLevel": {
+			"default": "Trace",
+			"Host": "Trace",
+			"Function": "Trace",
+			"Host.Aggregator": "Trace"
+		}
+	}
+
+}

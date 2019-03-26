@@ -1,0 +1,63 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "allowedValues": [
+        "australiaeast",
+        "canadacentral",
+        "canadaeast",
+        "centralus",
+        "eastasia",
+        "eastus",
+        "eastus2",
+        "japaneast",
+        "northeurope",
+        "southindia",
+        "southeastasia",
+        "uksouth",
+        "ukwest",
+        "westeurope",
+        "westus",
+        "westus2"
+      ],
+      "defaultValue": "eastus"
+    },
+    "state": {
+      "type": "array",
+      "defaultValue": []
+    }
+  },
+  "variables": {
+    "publicIpAddressName": "[concat(parameters('namePrefix'), '-', parameters('location'), '-aks-lb-pip')]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-08-01",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('publicIpAddressName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "publicIPAllocationMethod": "Static",
+        "idleTimeoutInMinutes": 4,
+        "publicIpAddressVersion": "IPv4",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('namePrefix')]"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "state": {
+      "type": "array",
+      "value": "[concat(parameters('state'), array(reference(variables('publicIpAddressName')).ipAddress))]"
+    }
+  }
+}

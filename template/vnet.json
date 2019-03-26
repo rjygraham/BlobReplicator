@@ -1,0 +1,85 @@
+{
+  "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "namePrefix": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string",
+      "allowedValues": [
+        "australiaeast",
+        "canadacentral",
+        "canadaeast",
+        "centralus",
+        "eastasia",
+        "eastus",
+        "eastus2",
+        "japaneast",
+        "northeurope",
+        "southindia",
+        "southeastasia",
+        "uksouth",
+        "ukwest",
+        "westeurope",
+        "westus",
+        "westus2"
+      ],
+      "defaultValue": "eastus"
+    },
+    "vnetAddressPrefixes": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/23"
+    },
+    "workloadSubnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.0.0/24"
+    },
+    "aksSubnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.0.1.0/24"
+    }
+  },
+  "variables": {
+    "virtualNetworkName": "[concat(parameters('namePrefix'), '-', parameters('location'), '-vnet')]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-08-01",
+      "name": "[variables('virtualNetworkName')]",
+      "type": "Microsoft.Network/virtualNetworks",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": ["[parameters('vnetAddressPrefixes')]"]
+        },
+        "subnets": [
+          {
+            "name": "workload",
+            "properties": {
+              "addressPrefix": "[parameters('workloadSubnetAddressPrefix')]",
+              "serviceEndpoints": [
+                {
+                  "service": "Microsoft.Storage"
+                }
+              ]
+            }
+          },
+          {
+            "name": "aks",
+            "properties": {
+              "addressPrefix": "[parameters('aksSubnetAddressPrefix')]"
+            }
+          }
+        ],
+        "enableDdosProtection": false
+      }
+    }
+  ],
+  "outputs": {
+      "virtualNetworkName": {
+          "type": "string",
+          "value": "[variables('virtualNetworkName')]"
+      }
+  }
+}
